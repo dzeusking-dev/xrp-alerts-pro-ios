@@ -1,0 +1,67 @@
+name: Build Native iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch WebBundle and Official Icon
+        run: |
+          mkdir -p WebBundle
+          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/index.html" -o WebBundle/index.html
+          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/styles.css" -o WebBundle/styles.css
+          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/app.js" -o WebBundle/app.js
+          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/icon.svg" -o WebBundle/icon.svg
+          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/manifest.webmanifest" -o WebBundle/manifest.webmanifest
+          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/apple-touch-icon.png" -o AppIcon.png
+          sips -s format png -z 120 120 AppIcon.png --out App/AppIcon60x60@2x.png
+          sips -s format png -z 180 180 AppIcon.png --out App/AppIcon60x60@3x.png
+
+      - name: Generate Xcode Project with XcodeGen
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen generate
+
+      - name: Compile iOS App + WidgetKit Extension
+        run: |
+          xcodebuild \
+            -project XRPAlertsPro.xcodeproj \
+            -scheme XRPAlertsPro \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            build
+
+      - name: Package XRPAlertsPro.ipa
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/XRPAlertsPro.app"
+          cp App/AppIcon60x60@2x.png "$APP_PATH/" || true
+          cp App/AppIcon60x60@3x.png "$APP_PATH/" || true
+          if [ -d "$APP_PATH/PlugIns/XRPWidgetExtension.appex" ]; then
+            codesign --force --sign - "$APP_PATH/PlugIns/XRPWidgetExtension.appex"
+          fi
+          codesign --force --sign - "$APP_PATH"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry XRPAlertsPro.ipa Payload
+          ls -lh XRPAlertsPro.ipa
+
+      - name: Publish IPA to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create v1.0.0 XRPAlertsPro.ipa --clobber --title "XRP Alerts Pro v3.22 (Native iOS + WidgetKit)" --notes "Native iOS IPA with WidgetKit Home Screen & Lock Screen Widgets"
