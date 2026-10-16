@@ -1,0 +1,42 @@
+name: XRPAlertsPro
+options:
+  bundleIdPrefix: com.gexiro
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  XRPAlertsPro:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: WebBundle
+        type: folder
+    dependencies:
+      - target: XRPWidgetExtension
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gexiro.xrpalertspro
+        MARKETING_VERSION: 3.22.0
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: App/Info.plist
+        SWIFT_VERSION: 5.0
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+  XRPWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gexiro.xrpalertspro.widget
+        MARKETING_VERSION: 3.22.0
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: Widget/Info.plist
+        SWIFT_VERSION: 5.0
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        SKIP_INSTALL: YES
