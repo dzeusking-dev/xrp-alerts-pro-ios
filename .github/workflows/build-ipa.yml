@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           for name in APPLE_TEAM_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_KEY_P8_BASE64 APPLE_DISTRIBUTION_P12_BASE64 APPLE_DISTRIBUTION_P12_PASSWORD APP_PROFILE_BASE64 WIDGET_PROFILE_BASE64; do
-            if [[ -z "${!name}" ]]; then
+            if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing GitHub secret: $name"
               exit 1
             fi
