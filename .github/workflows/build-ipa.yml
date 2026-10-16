@@ -3,6 +3,8 @@ name: Build Native iOS IPA
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'dist/**'
   workflow_dispatch:
 
 permissions:
@@ -46,7 +48,9 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             build
 
-      - name: Package XRPAlertsPro.ipa
+      - name: Package and Commit XRPAlertsPro.ipa
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           APP_PATH="build/Build/Products/Release-iphoneos/XRPAlertsPro.app"
           cp App/AppIcon60x60@2x.png "$APP_PATH/" || true
@@ -55,13 +59,13 @@ jobs:
             codesign --force --sign - "$APP_PATH/PlugIns/XRPWidgetExtension.appex"
           fi
           codesign --force --sign - "$APP_PATH"
-          mkdir -p Payload
+          mkdir -p Payload dist
           cp -R "$APP_PATH" Payload/
-          zip -qry XRPAlertsPro.ipa Payload
-          ls -lh XRPAlertsPro.ipa
-
-      - name: Publish IPA to GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create v1.0.0 XRPAlertsPro.ipa --clobber --title "XRP Alerts Pro v3.22 (Native iOS + WidgetKit)" --notes "Native iOS IPA with WidgetKit Home Screen & Lock Screen Widgets"
+          zip -qry dist/XRPAlertsPro.ipa Payload
+          ls -lh dist/XRPAlertsPro.ipa
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f dist/XRPAlertsPro.ipa
+          git commit -m "Add compiled XRPAlertsPro.ipa" || true
+          git push origin main
+          gh release create v1.0.0 dist/XRPAlertsPro.ipa --repo "${{ github.repository }}" --clobber --title "XRP Alerts Pro v3.22" --notes "Native iOS IPA with WidgetKit" || true
