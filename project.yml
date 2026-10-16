@@ -3,6 +3,18 @@ options:
   bundleIdPrefix: com.gexiro
   deploymentTarget:
     iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    DEVELOPMENT_TEAM: $(APPLE_TEAM_ID)
+    CODE_SIGN_STYLE: Manual
+  configs:
+    Debug:
+      CODE_SIGN_IDENTITY: Apple Development
+      APS_ENVIRONMENT: development
+    Release:
+      CODE_SIGN_IDENTITY: Apple Distribution
+      APS_ENVIRONMENT: production
 targets:
   XRPAlertsPro:
     type: application
@@ -21,9 +33,10 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         INFOPLIST_FILE: App/Info.plist
         SWIFT_VERSION: 5.0
-        CODE_SIGNING_ALLOWED: NO
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGN_IDENTITY: ""
+        CODE_SIGN_ENTITLEMENTS: App/XRPAlertsPro.entitlements
+        PROVISIONING_PROFILE_SPECIFIER: $(APP_PROVISIONING_PROFILE)
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
   XRPWidgetExtension:
     type: app-extension
     platform: iOS
@@ -36,7 +49,8 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         INFOPLIST_FILE: Widget/Info.plist
         SWIFT_VERSION: 5.0
-        CODE_SIGNING_ALLOWED: NO
-        CODE_SIGNING_REQUIRED: NO
-        CODE_SIGN_IDENTITY: ""
+        CODE_SIGN_ENTITLEMENTS: Widget/XRPWidgetExtension.entitlements
+        PROVISIONING_PROFILE_SPECIFIER: $(WIDGET_PROVISIONING_PROFILE)
+        APPLICATION_EXTENSION_API_ONLY: YES
+        TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: YES
