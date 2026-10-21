@@ -9,7 +9,7 @@ on:
       upload_testflight:
         description: Sign and upload to TestFlight (main only)
         type: boolean
-        default: true
+        default: false
 permissions:
   contents: read
 concurrency:
