@@ -1,0 +1,14 @@
+.env
+.env.*
+*.p8
+*.p12
+*.pem
+*.key
+*.csr
+*.mobileprovision
+*.xcodeproj/
+build/
+Payload/
+dist/
+fastlane/report.xml
+App/Assets.xcassets/AppIcon.appiconset/AppIcon.png

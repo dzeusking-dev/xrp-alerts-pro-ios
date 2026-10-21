@@ -1,71 +1,162 @@
-name: Build Native iOS IPA
-
+name: Build and upload to TestFlight
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - 'dist/**'
+    branches: [main]
+    paths-ignore: ['dist/**']
+  pull_request:
   workflow_dispatch:
-
+    inputs:
+      upload_testflight:
+        description: Sign and upload to TestFlight (main only)
+        type: boolean
+        default: true
 permissions:
-  contents: write
-
+  contents: read
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 jobs:
-  build-ipa:
+  validate:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Fetch WebBundle and Official Icon
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare project
         run: |
-          mkdir -p WebBundle
-          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/index.html" -o WebBundle/index.html
-          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/styles.css" -o WebBundle/styles.css
-          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/app.js" -o WebBundle/app.js
-          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/icon.svg" -o WebBundle/icon.svg
-          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/manifest.webmanifest" -o WebBundle/manifest.webmanifest
-          curl -fsSL "https://bathroom-docs-volumes-also.trycloudflare.com/apple-touch-icon.png" -o AppIcon.png
-          sips -s format png -z 120 120 AppIcon.png --out App/AppIcon60x60@2x.png
-          sips -s format png -z 180 180 AppIcon.png --out App/AppIcon60x60@3x.png
-
-      - name: Generate Xcode Project with XcodeGen
-        run: |
-          which xcodegen || brew install xcodegen
+          set -euo pipefail
+          xcodebuild -version
+          command -v xcodegen || brew install xcodegen
+          sips -z 1024 1024 assets/AppIconSource.png --out App/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           xcodegen generate
-
-      - name: Compile iOS App + WidgetKit Extension
+      - name: Compile application and WidgetKit extension
         run: |
-          xcodebuild \
-            -project XRPAlertsPro.xcodeproj \
-            -scheme XRPAlertsPro \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            build
-
-      - name: Package and Commit XRPAlertsPro.ipa
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          set -euo pipefail
+          xcodebuild -project XRPAlertsPro.xcodeproj -scheme XRPAlertsPro \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build
+          test -f build/Build/Products/Release-iphoneos/XRPAlertsPro.app/XRPAlertsPro
+          test -f build/Build/Products/Release-iphoneos/XRPAlertsPro.app/PlugIns/XRPWidgetExtension.appex/XRPWidgetExtension
+  testflight:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.upload_testflight
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: app-store
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_P8_BASE64 }}
+      APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+      APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+      APP_PROFILE_BASE64: ${{ secrets.APP_PROFILE_BASE64 }}
+      WIDGET_PROFILE_BASE64: ${{ secrets.WIDGET_PROFILE_BASE64 }}
+      FASTLANE_SKIP_UPDATE_CHECK: 'true'
+      FASTLANE_HIDE_CHANGELOG: 'true'
+      FASTLANE_OPT_OUT_USAGE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check required credentials
         run: |
-          APP_PATH="build/Build/Products/Release-iphoneos/XRPAlertsPro.app"
-          cp App/AppIcon60x60@2x.png "$APP_PATH/" || true
-          cp App/AppIcon60x60@3x.png "$APP_PATH/" || true
-          if [ -d "$APP_PATH/PlugIns/XRPWidgetExtension.appex" ]; then
-            codesign --force --sign - "$APP_PATH/PlugIns/XRPWidgetExtension.appex"
-          fi
-          codesign --force --sign - "$APP_PATH"
-          mkdir -p Payload dist
-          cp -R "$APP_PATH" Payload/
-          zip -qry dist/XRPAlertsPro.ipa Payload
-          ls -lh dist/XRPAlertsPro.ipa
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f dist/XRPAlertsPro.ipa
-          git commit -m "Add compiled XRPAlertsPro.ipa" || true
-          git push origin main
-          gh release create v1.0.0 dist/XRPAlertsPro.ipa --repo "${{ github.repository }}" --clobber --title "XRP Alerts Pro v3.22" --notes "Native iOS IPA with WidgetKit" || true
+          set -euo pipefail
+          for name in APPLE_TEAM_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_KEY_P8_BASE64 APPLE_DISTRIBUTION_P12_BASE64 APPLE_DISTRIBUTION_P12_PASSWORD APP_PROFILE_BASE64 WIDGET_PROFILE_BASE64; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing GitHub secret: $name"
+              exit 1
+            fi
+          done
+      - name: Install signing identity and validate provisioning profiles
+        run: |
+          set -euo pipefail
+          umask 077
+          SIGNING_DIR="$RUNNER_TEMP/gexiro-signing"
+          mkdir -p "$SIGNING_DIR"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 32)
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$APPLE_DISTRIBUTION_P12_BASE64" | base64 -D > "$SIGNING_DIR/distribution.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$SIGNING_DIR/signing.keychain-db"
+          security set-keychain-settings -lut 21600 "$SIGNING_DIR/signing.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$SIGNING_DIR/signing.keychain-db"
+          security import "$SIGNING_DIR/distribution.p12" -P "$APPLE_DISTRIBUTION_P12_PASSWORD" -t cert -f pkcs12 -k "$SIGNING_DIR/signing.keychain-db" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$SIGNING_DIR/signing.keychain-db" >/dev/null
+          security list-keychains -d user -s "$SIGNING_DIR/signing.keychain-db"
+          python3 <<'PY'
+          import base64, datetime, json, os, pathlib, plistlib, shutil, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'gexiro-signing'
+          team = os.environ['APPLE_TEAM_ID']
+          profiles_dir = pathlib.Path.home() / 'Library/Developer/Xcode/UserData/Provisioning Profiles'
+          profiles_dir.mkdir(parents=True, exist_ok=True)
+          mapping = {}
+          for prefix, bundle in [('APP', 'com.gexiro.xrpalertspro'), ('WIDGET', 'com.gexiro.xrpalertspro.widget')]:
+              path = root / (prefix + '.mobileprovision')
+              path.write_bytes(base64.b64decode(os.environ[prefix + '_PROFILE_BASE64'], validate=True))
+              profile = plistlib.loads(subprocess.check_output(['security', 'cms', '-D', '-i', str(path)]))
+              ent = profile['Entitlements']
+              if profile['TeamIdentifier'] != [team] or ent.get('com.apple.developer.team-identifier') != team:
+                  raise SystemExit(prefix + ': incorrect Apple team')
+              if ent.get('application-identifier') != profile['ApplicationIdentifierPrefix'][0] + '.' + bundle:
+                  raise SystemExit(prefix + ': incorrect bundle identifier')
+              if profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
+                  raise SystemExit(prefix + ': expired profile')
+              if ent.get('get-task-allow') or profile.get('ProvisionedDevices') or profile.get('ProvisionsAllDevices') or not ent.get('beta-reports-active'):
+                  raise SystemExit(prefix + ': expected an App Store distribution profile')
+              if 'group.com.gexiro.xrpalertspro' not in ent.get('com.apple.security.application-groups', []):
+                  raise SystemExit(prefix + ': required App Group missing')
+              if prefix == 'APP' and ent.get('aps-environment') != 'production':
+                  raise SystemExit('APP: production push entitlement missing')
+              shutil.copyfile(path, profiles_dir / (profile['UUID'] + '.mobileprovision'))
+              mapping[bundle] = profile['UUID']
+              with open(os.environ['GITHUB_ENV'], 'a') as stream:
+                  stream.write(prefix + '_PROVISIONING_PROFILE=' + profile['UUID'] + '\n')
+          with (root / 'ExportOptions.plist').open('wb') as stream:
+              plistlib.dump({'method': 'app-store-connect', 'teamID': team, 'signingStyle': 'manual',
+                  'signingCertificate': 'Apple Distribution', 'provisioningProfiles': mapping,
+                  'manageAppVersionAndBuildNumber': False, 'uploadSymbols': True}, stream)
+          key = base64.b64decode(os.environ['APP_STORE_CONNECT_KEY_P8_BASE64'], validate=True).decode()
+          (root / 'api-key.json').write_text(json.dumps({'key_id': os.environ['APP_STORE_CONNECT_KEY_ID'],
+              'issuer_id': os.environ['APP_STORE_CONNECT_ISSUER_ID'], 'key': key, 'in_house': False}))
+          PY
+      - name: Archive and export signed IPA
+        run: |
+          set -euo pipefail
+          command -v xcodegen || brew install xcodegen
+          sips -z 1024 1024 assets/AppIconSource.png --out App/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          xcodegen generate
+          BUILD_NUMBER="${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          xcodebuild -project XRPAlertsPro.xcodeproj -scheme XRPAlertsPro \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/XRPAlertsPro.xcarchive \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" APPLE_TEAM_ID="$APPLE_TEAM_ID" \
+            APP_PROVISIONING_PROFILE="$APP_PROVISIONING_PROFILE" \
+            WIDGET_PROVISIONING_PROFILE="$WIDGET_PROVISIONING_PROFILE" archive
+          codesign --verify --deep --strict build/XRPAlertsPro.xcarchive/Products/Applications/XRPAlertsPro.app
+          xcodebuild -exportArchive -archivePath build/XRPAlertsPro.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/gexiro-signing/ExportOptions.plist" -exportPath build/export
+          test -f build/export/XRPAlertsPro.ipa
+      - name: Upload and wait for App Store Connect processing
+        run: |
+          set -euo pipefail
+          fastlane pilot upload --ipa build/export/XRPAlertsPro.ipa \
+            --api_key_path "$RUNNER_TEMP/gexiro-signing/api-key.json" \
+            --app_identifier com.gexiro.xrpalertspro \
+            --distribute_external false --notify_external_testers false \
+            --skip_waiting_for_build_processing false
+      - name: Save signed build
+        uses: actions/upload-artifact@v4
+        with:
+          name: XRPAlertsPro-${{ github.run_number }}-${{ github.run_attempt }}
+          path: build/export/XRPAlertsPro.ipa
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/gexiro-signing/signing.keychain-db" || true
+          rm -rf "$RUNNER_TEMP/gexiro-signing"

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>XRP Alerts Pro</title>
+  <meta name="description" content="Real-time XRP price alerts, detailed stats, interactive charts, multi-record P&L wallet, and ad-free XRP news reader." />
+  <meta name="theme-color" content="#18191C" id="metaThemeColor" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="XRP Alerts" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header Bar matching iOS XRP Alerts -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button type="button" class="currency-pill" id="quickCurrencyBtn" aria-label="Change currency">
+          <span class="currency-flag" id="activeCurrencyFlag">🇬🇧</span>
+          <span id="activeCurrencyCode">GBP</span>
+        </button>
+        <span class="live-indicator" id="liveStatusBadge" title="Real-time WebSocket + Aggregated Feed">
+          <span class="live-dot"></span>
+          <span id="liveStatusText">LIVE</span>
+        </span>
+      </div>
+
+      <div class="top-bar-center">
+        <h1 class="view-title" id="currentViewTitle">XRP Price</h1>
+        <div class="view-title-underline"></div>
+      </div>
+
+      <div class="top-bar-right">
+        <button type="button" class="currency-pill pip-pill-btn" id="headerPipWidgetBtn" title="Pin Floating Live Widget to iPhone Screen">
+          <span>📌 Widget</span>
+        </button>
+        <button type="button" class="icon-btn" id="openSettingsBtn" aria-label="Open Settings">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Active Triggered Alert Banner (with instant one-tap limit bump) -->
+    <section class="triggered-banner hidden" id="triggeredAlertBanner" role="alert">
+      <div class="triggered-banner-top">
+        <span class="triggered-title" id="triggeredAlertText">High Alert Reached!</span>
+        <button type="button" class="banner-dismiss-btn" id="dismissAlertBannerBtn">Dismiss</button>
+      </div>
+      <div class="triggered-bump-actions">
+        <span class="bump-label">Quick adjust limit:</span>
+        <button type="button" class="bump-chip" data-bump="-0.05">-5%</button>
+        <button type="button" class="bump-chip" data-bump="-0.02">-2%</button>
+        <button type="button" class="bump-chip" data-bump="0.02">+2%</button>
+        <button type="button" class="bump-chip" data-bump="0.05">+5%</button>
+      </div>
+    </section>
+
+    <!-- Main Scrollable Viewport -->
+    <main class="view-container">
+      <!-- TAB 1: XRP PRICE & PORTFOLIO STATS (Matches ipad_1.png) -->
+      <section class="tab-view active" id="tab-overview" data-title="XRP Price">
+        <div class="hero-price-block">
+          <div class="hero-price" id="overviewHeroPrice">£0.0000</div>
+          <div class="hero-sub-pct" id="overviewHeroPct">+0.00%</div>
+        </div>
+
+        <!-- Portfolio Summary 2x2 Grid + Centered P&L -->
+        <div class="portfolio-overview-grid" id="overviewPortfolioSummary">
+          <div class="stat-pair">
+            <span class="stat-label">Total XRP:</span>
+            <span class="stat-value" id="ovTotalXrp">0</span>
+          </div>
+          <div class="stat-pair">
+            <span class="stat-label">AVG Price per XRP:</span>
+            <span class="stat-value" id="ovAvgBuyPrice">£0.0000</span>
+          </div>
+          <div class="stat-pair">
+            <span class="stat-label">Currently worth:</span>
+            <span class="stat-value" id="ovCurrentWorth">£0.00</span>
+          </div>
+          <div class="stat-pair">
+            <span class="stat-label">Total buy in:</span>
+            <span class="stat-value" id="ovTotalBuyIn">£0.00</span>
+          </div>
+          <div class="stat-pair stat-pair-full">
+            <span class="stat-label">Profit/Loss:</span>
+            <span class="stat-value pnl-text" id="ovTotalPnl">£0.00 (0.00%)</span>
+          </div>
+        </div>
+
+        <!-- Built-In iOS Live Widget Card + Home Screen Widget Installer -->
+        <div class="builtin-widget-card" id="builtinWidgetCard">
+          <div class="builtin-widget-header">
+            <span class="builtin-widget-title">Podgląd Widżetu Ekranu Głównego iOS</span>
+            <span class="builtin-widget-badge" id="pipWidgetStatusBadge">LIVE</span>
+          </div>
+          <div class="builtin-widget-preview-wrap">
+            <canvas id="pipWidgetCanvas" width="680" height="360" class="pip-widget-canvas"></canvas>
+          </div>
+          <div class="builtin-widget-actions">
+            <button type="button" class="primary-btn full-width" id="launchPipWidgetBtn">
+              📲 Dodaj ten Widżet na Ekran z Ikonami iPhone'a (Instrukcja 1-Klik)
+            </button>
+          </div>
+        </div>
+
+        <!-- Market Details Card (Matches ipad_1.png dark card) -->
+        <div class="market-stats-card">
+          <div class="market-stat-row">
+            <span class="ms-label">Market Cap</span>
+            <span class="ms-val" id="msMarketCap">—</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">Total Supply</span>
+            <span class="ms-val" id="msTotalSupply">99,987,385,748 XRP</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">Circulating Supply</span>
+            <span class="ms-val" id="msCirculatingSupply">58,100,000,000 XRP</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">24 Hour High</span>
+            <span class="ms-val" id="msHigh24h">—</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">24 Hour Low</span>
+            <span class="ms-val" id="msLow24h">—</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">24 Hour Change</span>
+            <span class="ms-val" id="msChange24h">—</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">1 Hour Change</span>
+            <span class="ms-val" id="msChange1h">—</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">24 Hour Volume</span>
+            <span class="ms-val" id="msVolume24h">—</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="ms-label">Break-Even Distance</span>
+            <span class="ms-val" id="msBreakEvenDist">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: HIGH / LOW ALERTS -->
+      <section class="tab-view" id="tab-alerts" data-title="XRP Alerts">
+        <div class="hero-price-block compact">
+          <div class="hero-price" id="alertsHeroPrice">£0.0000</div>
+          <div class="hero-sub-label">Current Live Price</div>
+        </div>
+
+        <div class="alerts-card">
+          <div class="alert-row-header">
+            <div>
+              <h2 class="alert-card-title">High XRP Alert</h2>
+              <p class="alert-card-sub">Notify when XRP rises above target</p>
+            </div>
+            <label class="ios-switch">
+              <input type="checkbox" id="highAlertEnabled" checked />
+              <span class="ios-slider"></span>
+            </label>
+          </div>
+          <div class="alert-input-group">
+            <span class="currency-prefix" id="highAlertPrefix">£</span>
+            <input type="number" step="0.0001" id="highAlertInput" class="alert-number-input" />
+            <div class="quick-step-btns">
+              <button type="button" class="step-btn" data-target="high" data-pct="0.02">+2%</button>
+              <button type="button" class="step-btn" data-target="high" data-pct="0.05">+5%</button>
+              <button type="button" class="step-btn" data-target="high" data-pct="0.10">+10%</button>
+            </div>
+          </div>
+          <div class="alert-distance" id="highAlertDistance">Distance: —</div>
+        </div>
+
+        <div class="alerts-card">
+          <div class="alert-row-header">
+            <div>
+              <h2 class="alert-card-title">Low XRP Alert</h2>
+              <p class="alert-card-sub">Notify when XRP drops below target</p>
+            </div>
+            <label class="ios-switch">
+              <input type="checkbox" id="lowAlertEnabled" checked />
+              <span class="ios-slider"></span>
+            </label>
+          </div>
+          <div class="alert-input-group">
+            <span class="currency-prefix" id="lowAlertPrefix">£</span>
+            <input type="number" step="0.0001" id="lowAlertInput" class="alert-number-input" />
+            <div class="quick-step-btns">
+              <button type="button" class="step-btn" data-target="low" data-pct="-0.02">-2%</button>
+              <button type="button" class="step-btn" data-target="low" data-pct="-0.05">-5%</button>
+              <button type="button" class="step-btn" data-target="low" data-pct="-0.10">-10%</button>
+            </div>
+          </div>
+          <div class="alert-distance" id="lowAlertDistance">Distance: —</div>
+        </div>
+
+        <!-- Custom Multi-Target Price & P&L Alerts (Upgrade) -->
+        <div class="alerts-card">
+          <div class="alert-row-header">
+            <div>
+              <h2 class="alert-card-title">Notification Channels</h2>
+              <p class="alert-card-sub">iOS Push, Sound Chime &amp; Webhook (ntfy.sh / Telegram)</p>
+            </div>
+            <button type="button" class="secondary-btn" id="testAlertBtn">Test Alert</button>
+          </div>
+          <div class="channel-options">
+            <label class="channel-check">
+              <input type="checkbox" id="soundAlertEnabled" checked />
+              <span>Audio Chime on Trigger</span>
+            </label>
+            <label class="channel-check">
+              <input type="checkbox" id="browserPushEnabled" />
+              <span>System Notifications</span>
+            </label>
+          </div>
+          <div class="webhook-row">
+            <input type="url" id="webhookUrlInput" class="text-input" placeholder="Optional: https://ntfy.sh/my-xrp-alerts or Discord Webhook" />
+            <button type="button" class="primary-btn small" id="saveWebhookBtn">Save</button>
+          </div>
+        </div>
+
+        <div class="alerts-card">
+          <h2 class="alert-card-title">Recent Trigger Log</h2>
+          <div id="alertHistoryList" class="alert-history-list">
+            <p class="empty-hint">No alerts triggered yet in this session.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: HISTORICAL & INTERACTIVE CHART (Matches screen_4.png) -->
+      <section class="tab-view" id="tab-chart" data-title="XRP Price">
+        <div class="hero-price-block chart-header">
+          <div class="hero-price" id="chartHeroPrice">£0.0000</div>
+          <div class="hero-sub-pct" id="chartHeroPct">+0.00%</div>
+          <div class="chart-scrub-time" id="chartScrubTimestamp">Live Market</div>
+        </div>
+
+        <div class="chart-stage-wrapper">
+          <div class="chart-high-label" id="chartHighLabel">High: —</div>
+          <canvas id="xrpChartCanvas" width="800" height="440"></canvas>
+          <div class="chart-low-label" id="chartLowLabel">Low: —</div>
+        </div>
+
+        <!-- Blue Segmented Timeframe Control (1H | 1D | 1W | 1M | 3M | 1Y | 2Y | ALL) -->
+        <div class="timeframe-segmented" role="tablist" aria-label="Chart timeframe">
+          <button type="button" class="tf-btn" data-range="1H">1H</button>
+          <button type="button" class="tf-btn active" data-range="1D">1D</button>
+          <button type="button" class="tf-btn" data-range="1W">1W</button>
+          <button type="button" class="tf-btn" data-range="1M">1M</button>
+          <button type="button" class="tf-btn" data-range="3M">3M</button>
+          <button type="button" class="tf-btn" data-range="1Y">1Y</button>
+          <button type="button" class="tf-btn" data-range="2Y">2Y</button>
+          <button type="button" class="tf-btn" data-range="ALL">ALL</button>
+        </div>
+      </section>
+
+      <!-- TAB 4: WALLET / MULTI-RECORD P&L TRACKER (Matches screen_2.png & ipad_3.png) -->
+      <section class="tab-view" id="tab-wallet" data-title="Wallet">
+        <div class="wallet-carousel-area" id="walletRecordStage">
+          <!-- Dynamically populated purchase record card matching screen_2.png -->
+        </div>
+
+        <div class="wallet-dots" id="walletPaginationDots"></div>
+
+        <div class="wallet-actions-bar">
+          <button type="button" class="primary-btn full-width" id="addNewRecordBtn">Add new record</button>
+        </div>
+
+        <!-- Pro Upgrade: Live On-Chain XRPL Address Sync -->
+        <div class="xrpl-sync-card">
+          <div class="xrpl-sync-header">
+            <h3 class="xrpl-sync-title">On-Chain XRPL Ledger Sync</h3>
+            <span class="pro-badge">PRO UNLOCKED</span>
+          </div>
+          <p class="xrpl-sync-desc">Sync live XRP balance directly from the XRP Ledger (`xrplcluster.com`) using any public `r...` address.</p>
+          <div class="xrpl-input-row">
+            <input type="text" id="xrplAddressInput" class="text-input" placeholder="Enter XRPL address (r...)" />
+            <button type="button" class="secondary-btn" id="syncXrplBtn">Sync</button>
+          </div>
+          <div id="xrplSyncStatus" class="xrpl-status-msg"></div>
+        </div>
+      </section>
+
+      <!-- TAB 5: XRP NEWS + AD-FREE READER VIEW (Matches screen_3.png & ipad_4.png) -->
+      <section class="tab-view" id="tab-news" data-title="XRP News">
+        <div class="news-toolbar">
+          <span class="news-reader-status">Default Reader View: <strong>Enabled (Ad-Free)</strong></span>
+          <button type="button" class="secondary-btn small" id="refreshNewsBtn">Refresh</button>
+        </div>
+        <div class="news-list" id="newsFeedList">
+          <p class="empty-hint">Loading latest XRP headlines...</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom 5-Tab iOS Navigation Bar (Matches screen_2.png & screen_4.png) -->
+    <nav class="bottom-nav" aria-label="Primary Navigation">
+      <button type="button" class="nav-tab active" data-tab="tab-overview" aria-label="XRP Price Overview">
+        <!-- XRP X Icon -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M4.5 5h2.7l4.8 5.1L16.8 5h2.7l-6.1 6.5c-.8.8-2 .8-2.8 0L4.5 5zm15 14h-2.7l-4.8-5.1L7.2 19H4.5l6.1-6.5c.8-.8 2-.8 2.8 0L19.5 19z"/>
+        </svg>
+      </button>
+
+      <button type="button" class="nav-tab" data-tab="tab-alerts" aria-label="XRP Alerts">
+        <!-- Bell Icon -->
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </button>
+
+      <button type="button" class="nav-tab" data-tab="tab-chart" aria-label="Historical Chart">
+        <!-- Line Chart Icon -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 7 15.5 15.5 11.5 10.5 7 17 2 12"></polyline>
+          <circle cx="22" cy="7" r="1.5" fill="currentColor"></circle>
+          <circle cx="7" cy="17" r="1.5" fill="currentColor"></circle>
+        </svg>
+      </button>
+
+      <button type="button" class="nav-tab" data-tab="tab-wallet" aria-label="Portfolio Wallet">
+        <!-- Wallet Icon -->
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+          <path d="M16 12h4"></path>
+          <circle cx="16" cy="12" r="1"></circle>
+        </svg>
+      </button>
+
+      <button type="button" class="nav-tab" data-tab="tab-news" aria-label="XRP News">
+        <!-- Globe Icon -->
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+      </button>
+    </nav>
+  </div>
+
+  <!-- MODAL 1: SETTINGS & 35 CURRENCIES (Matches ipad_5.png & ipad_6.png) -->
+  <dialog id="settingsDialog" closedby="any" aria-labelledby="settingsDialogTitle" class="ios-sheet-dialog">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h2 id="settingsDialogTitle">Settings</h2>
+        <button type="button" class="close-dialog-btn" data-close="settingsDialog" aria-label="Close Settings">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <!-- Price Source Selector -->
+        <div class="settings-group">
+          <label class="settings-group-label">Price Source</label>
+          <div class="segmented-two">
+            <button type="button" class="seg-opt active" data-source="direct" id="srcDirectBtn">Direct (Live WS)</button>
+            <button type="button" class="seg-opt" data-source="aggregated" id="srcAggregatedBtn">Aggregated</button>
+          </div>
+        </div>
+
+        <!-- Theme Selector (Dark grey / OLED Black / Light) -->
+        <div class="settings-group">
+          <label class="settings-group-label">Appearance</label>
+          <div class="segmented-three">
+            <button type="button" class="seg-opt active" data-theme-opt="dark">Dark grey</button>
+            <button type="button" class="seg-opt" data-theme-opt="oled">OLED Black</button>
+            <button type="button" class="seg-opt" data-theme-opt="light">Light</button>
+          </div>
+        </div>
+
+        <!-- iOS Lock Screen & Home Screen Widget Exporter -->
+        <div class="settings-group">
+          <label class="settings-group-label">iPhone Lock &amp; Home Screen Widgets</label>
+          <div class="widget-export-box">
+            <p class="widget-export-text">Get the native iOS Lock Screen &amp; Home Screen XRP widgets via the free <a href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank" rel="noopener" style="color: #0C93EA; font-weight: 600; text-decoration: underline;">Scriptable (App Store)</a> app — 100% free, no Pro subscription required.</p>
+            <button type="button" class="secondary-btn full-width" id="copyScriptableWidgetBtn">1. Copy iOS Widget Script</button>
+          </div>
+        </div>
+
+        <!-- 35 Currencies Picker with Recently Used (Matches ipad_5.png) -->
+        <div class="settings-group">
+          <label class="settings-group-label">Currency (35 supported)</label>
+          <input type="search" id="currencySearchInput" class="text-input" placeholder="Search currency (PLN, USD, EUR, GBP...)" />
+          <div class="currency-section-caption">Recently used:</div>
+          <div class="currency-list" id="recentCurrencyList"></div>
+          <div class="currency-section-caption">All currencies:</div>
+          <div class="currency-list" id="allCurrencyList"></div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL 2: ADD / EDIT WALLET PURCHASE RECORD -->
+  <dialog id="recordDialog" closedby="any" aria-labelledby="recordDialogTitle" class="ios-sheet-dialog">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h2 id="recordDialogTitle">Purchase Record</h2>
+        <button type="button" class="close-dialog-btn" data-close="recordDialog" aria-label="Close Record Form">✕</button>
+      </div>
+      <form id="recordForm" class="dialog-body">
+        <input type="hidden" id="recordIdInput" />
+        <div class="form-field">
+          <label for="recordAmountInput">XRP amount</label>
+          <input type="number" step="any" min="0.000001" required id="recordAmountInput" class="text-input" placeholder="e.g. 7000" />
+        </div>
+        <div class="form-field">
+          <label for="recordPriceInput">Price per XRP (<span id="recordCurrencyLabel">GBP</span>)</label>
+          <input type="number" step="any" min="0.000001" required id="recordPriceInput" class="text-input" placeholder="e.g. 0.1500" />
+        </div>
+        <div class="form-field">
+          <label for="recordDateInput">Trade date</label>
+          <input type="date" required id="recordDateInput" class="text-input" />
+        </div>
+        <div class="form-field">
+          <label for="recordNoteInput">Note / Exchange (optional)</label>
+          <input type="text" id="recordNoteInput" class="text-input" placeholder="e.g. Binance Spot / Cold Wallet" />
+        </div>
+        <div class="dialog-footer-btns">
+          <button type="button" class="danger-btn hidden" id="deleteRecordBtn">Delete</button>
+          <button type="submit" class="primary-btn">Save record</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL 3: AD-FREE READER VIEW (Matches ipad_4.png) -->
+  <dialog id="readerDialog" closedby="any" aria-labelledby="readerArticleTitle" class="ios-sheet-dialog reader-dialog">
+    <div class="dialog-inner">
+      <div class="reader-topbar">
+        <button type="button" class="reader-done-btn" data-close="readerDialog">Done</button>
+        <div class="reader-domain" id="readerDomainText">🔒 Reader View</div>
+        <div class="reader-actions">
+          <button type="button" class="reader-aa-btn" id="readerFontToggleBtn" title="Toggle font size">AA</button>
+          <a href="#" target="_blank" rel="noopener" class="reader-ext-link" id="readerExternalLink" title="Open original in Safari">↗</a>
+        </div>
+      </div>
+      <article class="reader-content" id="readerArticleBody">
+        <h2 id="readerArticleTitle">Loading article...</h2>
+      </article>
+    </div>
+  </dialog>
+
+  <!-- MODAL 4: HOME SCREEN WIDGET INSTALLER (1-Click Setup) -->
+  <dialog id="widgetSetupDialog" closedby="any" aria-labelledby="widgetSetupTitle" class="ios-sheet-dialog">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h2 id="widgetSetupTitle">Widżet na Ekran z Ikonami iOS</h2>
+        <button type="button" class="close-dialog-btn" data-close="widgetSetupDialog" aria-label="Close">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="widget-export-box" style="margin-bottom: 14px;">
+          <p class="widget-export-text" style="margin-bottom: 10px;">
+            <strong>Krok 1 (Jednorazowo):</strong> Zainstaluj darmowy kontener widżetów <strong>Scriptable</strong> z App Store, dzięki któremu iOS wyświetli widżet na liście <em>„Widget hinzufügen (+)”</em> między ikonami:
+          </p>
+          <a href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank" rel="noopener" class="primary-btn full-width" style="display: block; text-align: center; text-decoration: none;">
+            1. Pobierz Scriptable z App Store (Za darmo)
+          </a>
+        </div>
+
+        <div class="widget-export-box" style="margin-bottom: 14px;">
+          <p class="widget-export-text" style="margin-bottom: 10px;">
+            <strong>Krok 2:</strong> Kliknij poniżej — aplikacja automatycznie skopiuje Twój widżet (z walutą i portfelem XRP) oraz otworzy aplikację <strong>Scriptable</strong> (kliknij w niej <strong>+</strong>, wklej kod i kliknij <strong>Done</strong>):
+          </p>
+          <button type="button" class="primary-btn full-width" id="copyAndOpenScriptableBtn">
+            2. Skopiuj Kod Widżetu i Otwórz Scriptable
+          </button>
+        </div>
+
+        <div class="widget-export-box">
+          <p class="widget-export-text" style="margin-bottom: 0;">
+            <strong>Krok 3 (Dodanie na pulpit z ikonami):</strong><br/>
+            1. Wyjdź na ekran główny iPhone'a (z ikonami) i przytrzymaj palec na pustym tle.<br/>
+            2. Kliknij w lewym górnym rogu <strong>Bearbeiten (Edytuj) → Widget hinzufügen (Dodaj widżet)</strong>.<br/>
+            3. Wybierz z listy <strong>Scriptable</strong> → kliknij <strong>Widget hinzufügen</strong>.<br/>
+            4. Stuknij w dodany widżet i w polu <strong>Script</strong> wybierz swój skrypt XRP!
+          </p>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
